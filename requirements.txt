@@ -1,0 +1,6 @@
+aiogram==3.22.0
+aiohttp
+loguru
+python-dotenv
+uvloop
+https://github.com/KurimuzonAkuma/kurigram/archive/dev.zip
