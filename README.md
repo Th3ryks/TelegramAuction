@@ -5,8 +5,22 @@ A fully asynchronous Telegram bot that tracks and posts auction state updates to
 ## Features ✨
 - Async-first with `asyncio`, `aiohttp`, `aiogram`.
 - MarkdownV2-rich messages with collapsible quotes for top bids.
-- Smart update cadence: every 30s, and every 10s in the last minute.
-- Sends a new message on round change; otherwise edits existing content.
+- Smart update cadence: every 60s, and every 30s in the last minute.
+- Sends a new message on round change and marks previous as "Round Ended" 🕓.
+- Sends an "Auction Finished" message immediately when `end_date` occurs.
+- Shows bottom "Last Update" timestamp in UTC.
+
+## Two Versions 🔀
+This project includes two complementary ways to publish auction updates:
+
+- Userbot (MTProto) ✨: `userbot.py` posts as a Telegram user using Pyrogram. Uses a custom emoji for clock in messages.
+- Bot (Bot API) 🤖: `bot.py` posts as a bot using Aiogram. Uses the standard clock emoji.
+
+Both versions:
+- Link to the current auction with a header.
+- Edit the previous message to display "Round Ended" when `next_round_at` is reached.
+- Immediately send a terminal "Auction Finished" message when `end_date` is reached.
+- Append the latest UTC timestamp at the very bottom of the message.
 
 ## Requirements 📦
 - Python 3.11+
@@ -62,3 +76,4 @@ docker run --env-file .env --name auctionstate --rm auctionstate
 ## Notes 📝
 - Start via `python3 main.py`.
 - All secrets must be provided via environment variables; never hardcode tokens.
+ - `.env` must include real values; no demo data is used.
