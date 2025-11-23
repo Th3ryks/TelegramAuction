@@ -21,6 +21,12 @@ logger.add(
     level="INFO",
     colorize=True,
 )
+logger.add(
+    "bot.log",
+    format="| <magenta>{time:YYYY-MM-DD HH:mm:ss}</magenta> | <cyan><level>{level: <8}</level></cyan> | {message}",
+    level="INFO",
+    colorize=False,
+)
 
 def _to_serializable(obj: Any) -> Any:
     if obj is None:
@@ -189,7 +195,7 @@ async def fetch_auction_state() -> None:
                 )[: max(1, int(gifts_per_round) or (len(bid_levels) if isinstance(bid_levels, list) else 4)) ]
 
                 slug_clean = str(auction_slug or "").replace("`", "").strip()
-                header = f"<a href=\"https://t.me/auction/{html_escape(slug_clean)}\">{html_escape(title)}</a>"
+                header = f"<a href=\"https://t.me/auction/{html_escape(slug_clean)}\"><b>{html_escape(title)}</b></a>"
                 now_ts = int(datetime.now(tz=timezone.utc).timestamp())
                 remain_sec = (int(next_ts) - now_ts) if next_ts else 0
                 next_in = fmt_delta(remain_sec)
@@ -197,13 +203,13 @@ async def fetch_auction_state() -> None:
                 lines = [
                     f"{EMO_HAMMER} {header}",
                     "",
-                    f"{EMO_CLOCK} Next Round In: {next_in}",
-                    f"{EMO_NUM} Total Rounds: {current_round}/{total_rounds}",
+                    f"{EMO_CLOCK} <b>Next Round In:</b> {next_in}",
+                    f"{EMO_NUM} <b>Total Rounds:</b> {current_round}/{total_rounds}",
                     "",
-                    f"{EMO_GIFT} Gifts Left: {gifts_left}/{availability_total}",
-                    f"{EMO_UP} Min Bid: {min_bid_amount} {EMO_STAR} ≈ {fmt_usd(min_bid_amount)}",
+                    f"{EMO_GIFT} <b>Gifts Left:</b> {gifts_left}/{availability_total}",
+                    f"{EMO_UP} <b>Min Bid:</b> {min_bid_amount} {EMO_STAR} ≈ {fmt_usd(min_bid_amount)}",
                     "",
-                    f"{EMO_CROWN} Top {int(gifts_per_round or len(bids_sorted) or 0)} Bids:",
+                    f"{EMO_CROWN} <b>Top {int(gifts_per_round or len(bids_sorted) or 0)} Bids:</b>",
                 ]
 
                 updated = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -219,8 +225,8 @@ async def fetch_auction_state() -> None:
                 lines.append(f"<blockquote expandable>{inner}</blockquote>")
 
                 lines.append("")
-                lines.append("Made By @Th3ryks")
-                lines.append(f"{EMO_CLOCK} Last Update: {updated}")
+                lines.append("<b>Made By @Th3ryks</b>")
+                lines.append(f"{EMO_CLOCK} <b>Last Update:</b> {updated}")
                 return "\n".join(lines)
 
             state = await get_state()
