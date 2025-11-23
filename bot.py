@@ -107,6 +107,7 @@ async def fetch_auction_state() -> None:
         api_hash=api_hash,
         workdir=os.getcwd(),
         in_memory=False,
+        no_updates=True,
     )
 
     async with app:
