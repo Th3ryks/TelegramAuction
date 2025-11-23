@@ -219,7 +219,7 @@ async def fetch_auction_state() -> None:
                 lines.append(f"<blockquote expandable>{inner}</blockquote>")
 
                 lines.append("")
-                lines.append("Done By @Th3ryks")
+                lines.append("Made By @Th3ryks")
                 lines.append(f"{EMO_CLOCK} Last Update: {updated}")
                 return "\n".join(lines)
 

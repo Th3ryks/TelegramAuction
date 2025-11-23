@@ -212,7 +212,7 @@ async def fetch_auction_state() -> None:
                     inner_lines.append(f"{pos}. {amount} {EMO_STAR} ≈ {usd}")
                 inner = "\n".join(inner_lines)
                 parts.append(f"<blockquote expandable>{inner}</blockquote>")
-                parts.append("Done By @Th3ryks")
+                parts.append("Made By @Th3ryks")
                 updated = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
                 parts.append(f"{EMO_CLOCK} Last Update: {updated}")
                 return "\n".join(parts)
