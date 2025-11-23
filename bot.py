@@ -5,6 +5,7 @@ import asyncio
 from typing import Any
 from datetime import datetime, timezone
 from dotenv import load_dotenv
+import html
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
@@ -103,7 +104,7 @@ async def fetch_auction_state() -> None:
     )
 
     async with app:
-        bot = Bot(token=bot_token, default=DefaultBotProperties(parse_mode=ParseMode.MARKDOWN_V2))
+        bot = Bot(token=bot_token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
         try:
             gifts = await app.invoke(raw_functions.payments.GetStarGifts(hash=0))
             auction_gift = None
@@ -131,9 +132,8 @@ async def fetch_auction_state() -> None:
                 )
                 data = _to_serializable(res)
                 return data
-            def mdv2_escape(text: str) -> str:
-                specials = "_*[]()~`>#+-=|{}.!"
-                return "".join(("\\" + ch) if ch in specials else ch for ch in text)
+            def html_escape(text: str) -> str:
+                return html.escape(str(text))
 
             def fmt_ts(ts: int) -> str:
                 dt = datetime.fromtimestamp(ts, tz=timezone.utc)
@@ -188,7 +188,8 @@ async def fetch_auction_state() -> None:
                     key=lambda x: x.get("pos", 0)
                 )[: max(1, int(gifts_per_round) or (len(bid_levels) if isinstance(bid_levels, list) else 4)) ]
 
-                header = f"[{mdv2_escape(title)}](https://t.me/auction/{mdv2_escape(auction_slug)})"
+                slug_clean = str(auction_slug or "").replace("`", "").strip()
+                header = f"<a href=\"https://t.me/auction/{html_escape(slug_clean)}\">{html_escape(title)}</a>"
                 now_ts = int(datetime.now(tz=timezone.utc).timestamp())
                 remain_sec = (int(next_ts) - now_ts) if next_ts else 0
                 next_in = fmt_delta(remain_sec)
@@ -196,33 +197,30 @@ async def fetch_auction_state() -> None:
                 lines = [
                     f"{EMO_HAMMER} {header}",
                     "",
-                    f"{EMO_CLOCK} {'Round Ended' if remain_sec <= 0 else 'Next Round In: ' + mdv2_escape(next_in)}",
-                    f"{EMO_NUM} Total Rounds: {mdv2_escape(str(current_round))}/{mdv2_escape(str(total_rounds))}",
+                    f"{EMO_CLOCK} Next Round In: {next_in}",
+                    f"{EMO_NUM} Total Rounds: {current_round}/{total_rounds}",
                     "",
-                    f"{EMO_GIFT} Gifts Left: {mdv2_escape(str(gifts_left))}/{mdv2_escape(str(availability_total))}",
-                    f"{EMO_UP} Min Bid: {mdv2_escape(str(min_bid_amount))} {EMO_STAR} ≈ {mdv2_escape(fmt_usd(min_bid_amount))}",
+                    f"{EMO_GIFT} Gifts Left: {gifts_left}/{availability_total}",
+                    f"{EMO_UP} Min Bid: {min_bid_amount} {EMO_STAR} ≈ {fmt_usd(min_bid_amount)}",
                     "",
-                    f"{EMO_CROWN} Top {mdv2_escape(str(gifts_per_round or len(bids_sorted)))} Bids:",
+                    f"{EMO_CROWN} Top {int(gifts_per_round or len(bids_sorted) or 0)} Bids:",
                 ]
 
                 updated = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
-                quote_lines: list[str] = []
-                for i, b in enumerate(bids_sorted):
+                inner_lines: list[str] = []
+                for b in bids_sorted:
                     amount = b.get("amount")
                     pos = b.get("pos")
                     usd = fmt_usd(amount or 0)
-                    line = f"> {mdv2_escape(str(pos))}\\. {mdv2_escape(str(amount))} {EMO_STAR} ≈ {mdv2_escape(usd)}"
-                    if i == len(bids_sorted) - 1:
-                        line = line + "||"
-                    quote_lines.append(line)
+                    inner_lines.append(f"{pos}. {amount} {EMO_STAR} ≈ {usd}")
+                inner = "\n".join(inner_lines)
 
-                lines.append("**")
-                lines.extend(quote_lines)
+                lines.append(f"<blockquote expandable>{inner}</blockquote>")
 
                 lines.append("")
                 lines.append("Done By @Th3ryks")
-                lines.append(f"{EMO_CLOCK} Last Update: {mdv2_escape(updated)}")
+                lines.append(f"{EMO_CLOCK} Last Update: {updated}")
                 return "\n".join(lines)
 
             state = await get_state()
@@ -249,18 +247,27 @@ async def fetch_auction_state() -> None:
                         now_ts = int(datetime.now(tz=timezone.utc).timestamp())
                         next_ts_new = state_new.get("state", {}).get("next_round_at") or state_new.get("next_round_at") or 0
                         end_ts_new = state_new.get("state", {}).get("end_date") or state_new.get("end_date") or 0
-                        remain_next = max(0, int(next_ts_new) - now_ts) if next_ts_new else 60
+                        remain_next = max(0, int(next_ts_new) - now_ts) if next_ts_new else 30
                         remain_end = max(0, int(end_ts_new) - now_ts) if end_ts_new else 0
-                        period = 30 if remain_next <= 60 else 60
+                        period = 10 if remain_next <= 70 else 30
 
                         new_round = state_new.get("current_round") or state_new.get("state", {}).get("current_round") or 0
+                        if remain_next > 0 and remain_next <= 10:
+                            await asyncio.sleep(remain_next)
+                            state_new = await get_state()
+                            now_ts = int(datetime.now(tz=timezone.utc).timestamp())
+                            next_ts_new = state_new.get("state", {}).get("next_round_at") or state_new.get("next_round_at") or 0
+                            end_ts_new = state_new.get("state", {}).get("end_date") or state_new.get("end_date") or 0
+                            remain_next = max(0, int(next_ts_new) - now_ts) if next_ts_new else 0
+                            remain_end = max(0, int(end_ts_new) - now_ts) if end_ts_new else 0
+                            new_round = state_new.get("current_round") or state_new.get("state", {}).get("current_round") or 0
                         if end_ts_new and remain_end <= 0 and not finished_sent:
                             finished_lines = [
-                                f"{chr(0x1F528)} [{mdv2_escape(state_new.get('gift', {}).get('title') or 'Auction')}](https://t.me/auction/{mdv2_escape(auction_slug)})",
+                                f"{chr(0x1F528)} <a href=\"https://t.me/auction/{html_escape(str(auction_slug))}\">{html_escape(state_new.get('gift', {}).get('title') or 'Auction')}</a>",
                                 "",
                                 "🕓 Auction Finished",
                                 "Done By @Th3ryks",
-                                f"🕓 Last Update: {mdv2_escape(datetime.now(tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC'))}",
+                                f"🕓 Last Update: {datetime.now(tz=timezone.utc).strftime('%Y-%m-%d %H:%M:%S UTC')}",
                             ]
                             finished_text = "\n".join(finished_lines)
                             try:
@@ -275,12 +282,24 @@ async def fetch_auction_state() -> None:
                             finished_sent = True
                             last_text = finished_text
                         elif remain_next <= 0:
-                            ended_text = build_text({**state_new, "state": {**state_new.get("state", {}), "next_round_at": 0}})
+                            ended_lines = last_text.split("\n")
+                            if len(ended_lines) > 2:
+                                ended_lines[2] = "🕓 Round Ended"
+                            ended_text = "\n".join(ended_lines)
                             try:
                                 await bot.edit_message_text(chat_id=target_chat, message_id=last_msg_id, text=ended_text)
                             except TelegramBadRequest as e:
                                 logger.error(f"Edit failed: {e}")
-                            text_new = build_text(state_new)
+                            new_state = state_new
+                            if new_round == last_round:
+                                for _ in range(5):
+                                    await asyncio.sleep(1)
+                                    new_state = await get_state()
+                                    nr_check = new_state.get("current_round") or new_state.get("state", {}).get("current_round") or 0
+                                    if nr_check != last_round:
+                                        new_round = nr_check
+                                        break
+                            text_new = build_text(new_state)
                             try:
                                 new_msg = await bot.send_message(chat_id=target_chat, text=text_new)
                             except TelegramBadRequest as e:
@@ -293,6 +312,14 @@ async def fetch_auction_state() -> None:
                             last_round = new_round or last_round
                             last_text = text_new
                         elif new_round != last_round:
+                            ended_lines = last_text.split("\n")
+                            if len(ended_lines) > 2:
+                                ended_lines[2] = "🕓 Round Ended"
+                            ended_text = "\n".join(ended_lines)
+                            try:
+                                await bot.edit_message_text(chat_id=target_chat, message_id=last_msg_id, text=ended_text)
+                            except TelegramBadRequest as e:
+                                logger.error(f"Edit failed: {e}")
                             text_new = build_text(state_new)
                             try:
                                 new_msg = await bot.send_message(chat_id=target_chat, text=text_new)

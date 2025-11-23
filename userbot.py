@@ -197,7 +197,7 @@ async def fetch_auction_state() -> None:
                 parts: list[str] = []
                 parts.append(f"{EMO_HAMMER} {header}")
                 parts.append("")
-                parts.append(f"{EMO_CLOCK} {'Round Ended' if remain_sec <= 0 else 'Next Round In: ' + next_in}")
+                parts.append(f"{EMO_CLOCK} Next Round In: {next_in}")
                 parts.append(f"{EMO_GIFT_TOTAL} Total Rounds: {current_round}/{total_rounds}")
                 parts.append("")
                 parts.append(f"{EMO_GIFT_LEFT} Gifts Left: {gifts_left}/{availability_total}")
@@ -246,6 +246,15 @@ async def fetch_auction_state() -> None:
                         period = 30 if remain_next <= 60 else 60
 
                         new_round = state_new.get("current_round") or state_new.get("state", {}).get("current_round") or 0
+                        if remain_next > 0 and remain_next <= 10:
+                            await asyncio.sleep(remain_next)
+                            state_new = await get_state()
+                            now_ts = int(datetime.now(tz=timezone.utc).timestamp())
+                            next_ts_new = state_new.get("state", {}).get("next_round_at") or state_new.get("next_round_at") or 0
+                            end_ts_new = state_new.get("state", {}).get("end_date") or state_new.get("end_date") or 0
+                            remain_next = max(0, int(next_ts_new) - now_ts) if next_ts_new else 0
+                            remain_end = max(0, int(end_ts_new) - now_ts) if end_ts_new else 0
+                            new_round = state_new.get("current_round") or state_new.get("state", {}).get("current_round") or 0
                         if end_ts_new and remain_end <= 0 and not finished_sent:
                             finished_text = "\n".join([
                                 f"<emoji id=\"5411180428092533606\">🔨</emoji> <a href=\"https://t.me/auction/{html_escape(str(auction_slug))}\">{html_escape(state_new.get('gift', {}).get('title') or 'Auction')}</a>",
@@ -266,14 +275,26 @@ async def fetch_auction_state() -> None:
                             finished_sent = True
                             last_text = finished_text
                         if remain_next <= 0:
-                            ended_text = build_text({**state_new, "state": {**state_new.get("state", {}), "next_round_at": 0}})
+                            ended_lines = last_text.split("\n")
+                            if len(ended_lines) > 2:
+                                ended_lines[2] = "<emoji id=\"5409044257388390754\">🕓</emoji> Round Ended"
+                            ended_text = "\n".join(ended_lines)
                             try:
                                 await app.edit_message_text(chat_id=target_chat, message_id=last_msg_id, text=ended_text, parse_mode=enums.ParseMode.HTML)
                             except MessageNotModified:
                                 pass
                             except RPCError as e:
                                 logger.error(f"Edit failed: {e}")
-                            text_new = build_text(state_new)
+                            new_state = state_new
+                            if new_round == last_round:
+                                for _ in range(5):
+                                    await asyncio.sleep(1)
+                                    new_state = await get_state()
+                                    nr_check = new_state.get("current_round") or new_state.get("state", {}).get("current_round") or 0
+                                    if nr_check != last_round:
+                                        new_round = nr_check
+                                        break
+                            text_new = build_text(new_state)
                             try:
                                 new_msg = await app.send_message(chat_id=target_chat, text=text_new, parse_mode=enums.ParseMode.HTML)
                             except RPCError as e:
@@ -286,6 +307,16 @@ async def fetch_auction_state() -> None:
                             last_round = new_round or last_round
                             last_text = text_new
                         elif new_round != last_round:
+                            ended_lines = last_text.split("\n")
+                            if len(ended_lines) > 2:
+                                ended_lines[2] = "<emoji id=\"5409044257388390754\">🕓</emoji> Round Ended"
+                            ended_text = "\n".join(ended_lines)
+                            try:
+                                await app.edit_message_text(chat_id=target_chat, message_id=last_msg_id, text=ended_text, parse_mode=enums.ParseMode.HTML)
+                            except MessageNotModified:
+                                pass
+                            except RPCError as e:
+                                logger.error(f"Edit failed: {e}")
                             text_new = build_text(state_new)
                             try:
                                 new_msg = await app.send_message(chat_id=target_chat, text=text_new, parse_mode=enums.ParseMode.HTML)
