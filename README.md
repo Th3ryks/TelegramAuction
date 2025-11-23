@@ -16,6 +16,12 @@ A fully asynchronous Telegram bot that tracks and posts auction state updates to
   - `BOT_TOKEN`
   - `CHANNEL_ID` (numeric `3441054411`)
 
+## Get the code 📥
+```bash
+git clone https://github.com/Th3ryks/TelegramAuction.git
+cd TelegramAuction
+```
+
 Install dependencies:
 
 ```bash
